@@ -5,7 +5,7 @@ from ws4py.client.threadedclient import WebSocketClient
 import base64, json, ssl, subprocess, threading, time
 
 class SpeechToTextClient(WebSocketClient):
-    def __init__(self, username, password, model = "zh-CN_BroadbandModel", on_recv_msg = None):
+    def __init__(self, username, password, model = "zh-CN_BroadbandModel", on_recv_msg = None, timeout = -1):
         ws_url = "wss://stream.watsonplatform.net/speech-to-text/api/v1/recognize?model=%s" % (model)
 
         auth_string = "%s:%s" % (username, password)
@@ -13,6 +13,7 @@ class SpeechToTextClient(WebSocketClient):
 
         self.listening = False
         self.on_recv_msg = on_recv_msg
+        self.inactivity_timeout = timeout;
 
         try:
             WebSocketClient.__init__(self, ws_url,
@@ -21,7 +22,7 @@ class SpeechToTextClient(WebSocketClient):
         except: print "Failed to open WebSocket."
 
     def opened(self):
-        self.send('{"action": "start", "content-type": "audio/l16;rate=16000;channels=1"}')
+        self.send('{"action": "start", "content-type": "audio/l16;rate=16000;channels=1", "inactivity_timeout": %d}' % (self.inactivity_timeout))
         self.stream_audio_thread = threading.Thread(target=self.stream_audio)
         self.stream_audio_thread.start()
 
