@@ -9,7 +9,7 @@ class BleLight():
         self.child = pexpect.spawn("gatttool -I -b {0}".format(mac))
         self.child.expect("LE", timeout = 10)
         self.child.sendline("connect") 
-        self.child.expect("CON", timeout = 10)
+        self.child.expect(["CON", "successful"], timeout = 10)
         
         if done_handler != None: done_handler()
 
@@ -29,4 +29,3 @@ if __name__ == "__main__":
     blelights = BleLight("00:02:5B:00:10:73")
     blelights.control(1, 0)
     blelights.control(2, 0)
-    
