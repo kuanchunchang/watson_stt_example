@@ -14,10 +14,10 @@ def main():
     cfg.read("./account.conf")
     username = cfg.get("bluemix", "username")
     password = cfg.get("bluemix", "password")
-    keyword_array = ['打开', '关闭', '一号', '二号', '灯', '小智', '再见', '你好', '号灯']
+    keyword_array = ['小白', '小黑', '血压', '体重', '血糖', '开灯', '关灯']
 
     try:
-        stt_client = sttcli.SpeechToTextClient(username, password, on_recv_msg = handler_recv_msg, keywords = keyword_array, keywords_threshold = 0.1)
+        stt_client = sttcli.SpeechToTextClient(username, password, on_recv_msg = None, keywords = keyword_array, keywords_threshold = 0.1)
         raw_input()
     finally:
         stt_client.close()
