@@ -3,9 +3,14 @@
 
 import sttcli
 import os, ConfigParser, subprocess
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 from Tkinter import *
 from ttk import *
 from blelight import *
+
 
 #### global vars
 blelight_patterns = {
@@ -28,7 +33,16 @@ health_patterns = {
     u'小黑记录': 0x81,
 }
 
-health_record = [[], []]
+health_record = {
+    u'小白血压': 0,
+    u'小白血糖': 0,
+    u'小白体重': 0,
+    u'小白记录': 0,
+    u'小黑血压': 0,
+    u'小黑血糖': 0,
+    u'小黑体重': 0,
+    u'小黑记录': 0,
+}
 
 #### calss ####
 class VoiceOrganizer(Frame):
@@ -40,6 +54,24 @@ class VoiceOrganizer(Frame):
         self.audio_output = audio_output
         self.do_blelight = do_blelight
         self.row = 1
+        self.pltimg = None
+        self.health_cfg = ConfigParser.ConfigParser()
+        self.health_cfg.read("healthrecord.ini")
+        # matplotlib
+        self.fig = Figure(figsize=(6,5))
+        self.ax1 = self.fig.add_subplot(311)
+        self.ax2 = self.fig.add_subplot(312)
+        self.ax3 = self.fig.add_subplot(313)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.healthRecord)
+
+    def get_bw_list(self, who):
+        return list(self.health_cfg.get(who, 'body_weight', "").split(','))
+
+    def get_bp_list(self, who):
+        return list(self.health_cfg.get(who, 'blood_pressure', "").split(','))
+
+    def get_bs_list(self, who):
+        return list(self.health_cfg.get(who, 'blood_sugar', "").split(','))
 
     def stt_done(self):
         self.sttText["text"] = "Voice"
@@ -48,8 +80,36 @@ class VoiceOrganizer(Frame):
         self.bleligthText["text"] = "BLE Light"
         
     def speak(self, spk_str):
-        cmd = "/usr/bin/espeak -vzh %s --stdout | aplay -D plughw:%s" % (spk_str, self.audio_output)
+        cmd = "/usr/bin/espeak -vzh+f5 %s --stdout | aplay -D plughw:%s" % (spk_str, self.audio_output)
         subprocess.Popen(cmd, shell=True)
+
+    def show_health_plot(self, val):
+        idx = val & 0x0F
+        who = 'small_white' if idx==0x00 else 'small_black'
+        who_zh = u'小白' if idx==0x00 else u'小黑'
+        who_bw = health_record[who_zh + u'体重']
+        who_bp = health_record[who_zh + u'血压']
+        who_bs = health_record[who_zh + u'血糖']
+
+        self.ax1.clear()
+        self.ax2.clear()
+        self.ax3.clear()
+
+        self.ax1.set_title(u'Whity' if idx==0x00 else u'Black')
+        self.ax1.plot(self.get_bw_list(who) + [who_bw], 'ro-', label='body weight')
+        self.ax1.set_ylim([30,100])
+        self.ax1.legend()
+
+        self.ax2.plot(self.get_bp_list(who) + [who_bp], 'go-', label='blood pressure')
+        self.ax2.set_ylim([50,200])
+        self.ax2.legend()
+
+        self.ax3.plot(self.get_bs_list(who) + [who_bs], 'bo-', label='blood sugar')
+        self.ax3.set_ylim([50,200])
+        self.ax3.legend()
+
+        self.canvas.show()
+        self.canvas.get_tk_widget().pack()
 
     def stt_handler(self, msg):
         if msg.has_key('results') and len(msg['results']) > 0:
@@ -66,10 +126,12 @@ class VoiceOrganizer(Frame):
             if bFinal:
                 for key in health_patterns.keys():
                     if key in transcript:
-                        event_type = 1
-                        event_key  = key
-                        event_data = transcript
-                        break
+                        val = self.text_to_number(transcript[4:])
+                        if val != 0 or u'记录' in transcript:
+                            event_type = 1
+                            event_key  = key
+                            event_data = val
+                            break
             # test if bluetooth (2)
             # test if blelight (3)
             if bFinal:
@@ -82,30 +144,23 @@ class VoiceOrganizer(Frame):
             # show transcript in corresponding field
             self.output_fields[0].delete("%s.0"%(self.row), "%s.99"%(self.row))
             self.output_fields[0].insert("%s.0"%(self.row), transcript)
+            self.output_fields[0].see("end")
             if bFinal == True:
                 self.output_fields[0].insert(END, '\n')
                 if event_type != 0:
                     self.output_fields[event_type].insert(END, transcript + '\n')
+                    self.output_fields[event_type].see("end")
                 self.row = self.row + 1
-            self.output_fields[0].see("end")
 
             # do health
             if event_type == 1 and bFinal == True:
                 val = health_patterns[event_key]
                 if (val & 0x80) == 0x80:    # it's show-record command
-                    self.healthRecord.delete('1.0', END)
-                    idx = val & 0x0F
-                    spk_str = ""
-                    for hr in health_record[idx]:
-                        self.healthRecord.insert(END, hr + '\n')
-                        spk_str += hr
-                        #health_record.remove(hr)
-                    self.speak(spk_str)
-                else:                       # it's data, save it to healt_record
-                    self.speak(event_data)
-                    health_record[val].append(event_data)
-                    #print health_record
+                    self.show_health_plot(val)
 
+                else:                       # it's data, save it to healt_record
+                    self.speak(transcript)
+                    health_record[event_key] = event_data
             # do bluetooth
             elif event_type == 2:
                 pass
@@ -113,6 +168,29 @@ class VoiceOrganizer(Frame):
             elif event_type == 3 and self.do_blelight == True:
                 for val in blelight_patterns[event_key]:
                     blelights.control(val[0], val[1])
+
+    def text_to_number(self, txt):
+        ttn_patterns = {u'九':9, u'八':8, u'七':7, u'六':6, u'五':5, u'四':4, u'三':3, u'二':2, u'一':1,}
+        sum = 0
+        if u'百' in txt :
+            idx = txt.index(u'百')
+            txt_digit = txt[idx - 1]
+            digit = ttn_patterns[txt_digit]
+            sum += digit * 100
+
+        if u'十' in txt :
+            idx = txt.index(u'十')
+            txt_digit = txt[idx - 1]
+            digit = ttn_patterns[txt_digit]
+            sum += digit * 10
+            if len(txt) > idx + 1:
+                txt_digit = txt[idx + 1]
+                try:
+                    sum += ttn_patterns[txt_digit]
+                except:
+                    pass
+
+        return sum
 
     def createWidgets(self):
         # Watson STT
@@ -126,24 +204,24 @@ class VoiceOrganizer(Frame):
         self.healthText = Label(self)
         self.healthText["text"] = "Health"
         self.healthText.grid(row=1, column=0)
-        self.healthField = Text(self, height=6, width=30, font=(None, 16))
-        self.healthField.grid(row=1, column=1, columnspan=3)
-        self.healthRecord = Text(self, height=6, width=30, font=(None, 16))
-        self.healthRecord.grid(row=1, column=4, columnspan=3)
+        self.healthField = Text(self, height=6, width=20, font=(None, 16))
+        self.healthField.grid(row=1, column=1, columnspan=2)
+        self.healthRecord = Canvas(self, width=480, height=360)
+        self.healthRecord.grid(row=1, column=3, rowspan=3, columnspan=4)
 
         # bluetooth
         self.bluetoothText = Label(self)
         self.bluetoothText["text"] = "Bluetooth"
         self.bluetoothText.grid(row=2, column=0)
-        self.bluetoothField = Text(self, height=6, width=60, font=(None, 16))
-        self.bluetoothField.grid(row=2, column=1, columnspan=6)
+        self.bluetoothField = Text(self, height=6, width=20, font=(None, 16))
+        self.bluetoothField.grid(row=2, column=1, columnspan=2)
 
         # bleligth
         self.bleligthText = Label(self)
         self.bleligthText["text"] = "*BLE Light*"
         self.bleligthText.grid(row=3, column=0)
-        self.bleligthField = Text(self, height=4, width=60, font=(None, 16))
-        self.bleligthField.grid(row=3, column=1, columnspan=6)
+        self.bleligthField = Text(self, height=4, width=20, font=(None, 16))
+        self.bleligthField.grid(row=3, column=1, columnspan=2)
 
         # buttons
         self.exitBtn = Button(self, text = "Exit", command = lambda:root.destroy())
@@ -164,19 +242,19 @@ if __name__ == '__main__':
     root = Tk()
     root.title("IBM Watson Voice Service Application")
     app = VoiceOrganizer(root, audio_output, do_blelight)
-    
+
     # init watson service
     cfg = ConfigParser.ConfigParser()
     cfg.read("./account.conf")
     username = cfg.get("bluemix", "username")
     password = cfg.get("bluemix", "password")
-    keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小白', '小黑', '今天', '血压', '血糖', '体重', '再见', '你好']
+    keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小', '白', '黑', '今', '天', '血', '压', '糖', '体', '重', '记', '录']
     stt_client = sttcli.SpeechToTextClient( username, 
                                             password, 
                                             on_recv_msg = app.stt_handler,
                                             interim = "true",
                                             keywords = keyword_array, 
-                                            keywords_threshold = 0.1, 
+                                            keywords_threshold = 0.05,
                                             done_handler = app.stt_done) # block mode
 
     # init ble light
@@ -189,4 +267,3 @@ if __name__ == '__main__':
     # ending
     if do_blelight and blelights != None: blelights.close()
     stt_client.close()
-
