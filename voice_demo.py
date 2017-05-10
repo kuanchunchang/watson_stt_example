@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sttcli
-import os, ConfigParser, subprocess
+import os, ConfigParser, subprocess, numpy
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -58,20 +58,27 @@ class VoiceOrganizer(Frame):
         self.health_cfg = ConfigParser.ConfigParser()
         self.health_cfg.read("healthrecord.ini")
         # matplotlib
-        self.fig = Figure(figsize=(6,5))
+        self.fig = Figure(figsize=(5,4))
         self.ax1 = self.fig.add_subplot(311)
         self.ax2 = self.fig.add_subplot(312)
         self.ax3 = self.fig.add_subplot(313)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.healthRecord)
+        matplotlib.rcParams.update({'font.size': 9})
 
     def get_bw_list(self, who):
-        return list(self.health_cfg.get(who, 'body_weight', "").split(','))
+        str_list = list(self.health_cfg.get(who, 'body_weight', "").split(','))
+        int_list = map(int, str_list)
+        return int_list
 
     def get_bp_list(self, who):
-        return list(self.health_cfg.get(who, 'blood_pressure', "").split(','))
+        str_list = list(self.health_cfg.get(who, 'blood_pressure', "").split(','))
+        int_list = map(int, str_list)
+        return int_list
 
     def get_bs_list(self, who):
-        return list(self.health_cfg.get(who, 'blood_sugar', "").split(','))
+        str_list = list(self.health_cfg.get(who, 'blood_sugar', "").split(','))
+        int_list = map(int, str_list)
+        return int_list
 
     def stt_done(self):
         self.sttText["text"] = "Voice"
@@ -98,15 +105,18 @@ class VoiceOrganizer(Frame):
         self.ax1.set_title(u'Whity' if idx==0x00 else u'Black')
         self.ax1.plot(self.get_bw_list(who) + [who_bw], 'ro-', label='body weight')
         self.ax1.set_ylim([30,100])
-        self.ax1.legend()
+        self.ax1.legend(loc=2)
+        self.ax1.text(15,  80, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bw_list(who) + [who_bw]), who_bw), fontsize=9)
 
         self.ax2.plot(self.get_bp_list(who) + [who_bp], 'go-', label='blood pressure')
-        self.ax2.set_ylim([50,200])
-        self.ax2.legend()
+        self.ax2.set_ylim([60,220])
+        self.ax2.legend(loc=2)
+        self.ax2.text(15, 180, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bp_list(who) + [who_bp]), who_bp), fontsize=9)
 
         self.ax3.plot(self.get_bs_list(who) + [who_bs], 'bo-', label='blood sugar')
         self.ax3.set_ylim([50,200])
-        self.ax3.legend()
+        self.ax3.legend(loc=2)
+        self.ax3.text(15, 160, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bs_list(who) + [who_bs]), who_bs), fontsize=9)
 
         self.canvas.show()
         self.canvas.get_tk_widget().pack()
@@ -157,10 +167,10 @@ class VoiceOrganizer(Frame):
                 val = health_patterns[event_key]
                 if (val & 0x80) == 0x80:    # it's show-record command
                     self.show_health_plot(val)
-
-                else:                       # it's data, save it to healt_record
+                else:                       # it's data, save it to health_record and show plot
                     self.speak(transcript)
                     health_record[event_key] = event_data
+                    self.show_health_plot(val)
             # do bluetooth
             elif event_type == 2:
                 pass
@@ -197,31 +207,31 @@ class VoiceOrganizer(Frame):
         self.sttText = Label(self)
         self.sttText["text"] = "*Voice*"
         self.sttText.grid(row=0, column=0)
-        self.sttField = Text(self, height=6, width=60, font=(None, 16))
-        self.sttField.grid(row=0, column=1, columnspan=6)
+        self.sttField = Text(self, height=4, width=56, font=(None, 12))
+        self.sttField.grid(row=0, column=1, columnspan=6, sticky=W)
 
         # health
         self.healthText = Label(self)
         self.healthText["text"] = "Health"
         self.healthText.grid(row=1, column=0)
-        self.healthField = Text(self, height=6, width=20, font=(None, 16))
-        self.healthField.grid(row=1, column=1, columnspan=2)
-        self.healthRecord = Canvas(self, width=480, height=360)
+        self.healthField = Text(self, height=4, width=16, font=(None, 12))
+        self.healthField.grid(row=1, column=1, columnspan=2, sticky=W)
+        self.healthRecord = Canvas(self, width=400, height=320)
         self.healthRecord.grid(row=1, column=3, rowspan=3, columnspan=4)
 
         # bluetooth
         self.bluetoothText = Label(self)
         self.bluetoothText["text"] = "Bluetooth"
         self.bluetoothText.grid(row=2, column=0)
-        self.bluetoothField = Text(self, height=6, width=20, font=(None, 16))
-        self.bluetoothField.grid(row=2, column=1, columnspan=2)
+        self.bluetoothField = Text(self, height=4, width=16, font=(None, 12))
+        self.bluetoothField.grid(row=2, column=1, columnspan=2, sticky=W)
 
         # bleligth
         self.bleligthText = Label(self)
         self.bleligthText["text"] = "*BLE Light*"
         self.bleligthText.grid(row=3, column=0)
-        self.bleligthField = Text(self, height=4, width=20, font=(None, 16))
-        self.bleligthField.grid(row=3, column=1, columnspan=2)
+        self.bleligthField = Text(self, height=4, width=16, font=(None, 12))
+        self.bleligthField.grid(row=3, column=1, columnspan=2, sticky=W)
 
         # buttons
         self.exitBtn = Button(self, text = "Exit", command = lambda:root.destroy())
