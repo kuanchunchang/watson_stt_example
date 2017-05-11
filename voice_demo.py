@@ -103,17 +103,17 @@ class VoiceOrganizer(Frame):
         self.ax3.clear()
 
         self.ax1.set_title(u'Whity' if idx==0x00 else u'Black')
-        self.ax1.plot(self.get_bw_list(who) + [who_bw], 'ro-', label='body weight')
+        self.ax1.plot(self.get_bw_list(who) + ([who_bw] if who_bw != 0 else []), 'ro-', label='body weight')
         self.ax1.set_ylim([30,100])
         self.ax1.legend(loc=2)
         self.ax1.text(15,  80, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bw_list(who) + [who_bw]), who_bw), fontsize=9)
 
-        self.ax2.plot(self.get_bp_list(who) + [who_bp], 'go-', label='blood pressure')
+        self.ax2.plot(self.get_bp_list(who) + ([who_bp] if who_bp != 0 else []), 'go-', label='blood pressure')
         self.ax2.set_ylim([60,220])
         self.ax2.legend(loc=2)
         self.ax2.text(15, 180, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bp_list(who) + [who_bp]), who_bp), fontsize=9)
 
-        self.ax3.plot(self.get_bs_list(who) + [who_bs], 'bo-', label='blood sugar')
+        self.ax3.plot(self.get_bs_list(who) + ([who_bs] if who_bs != 0 else []), 'bo-', label='blood sugar')
         self.ax3.set_ylim([50,200])
         self.ax3.legend(loc=2)
         self.ax3.text(15, 160, r'avg=%.2f, today=%d' % (numpy.mean(self.get_bs_list(who) + [who_bs]), who_bs), fontsize=9)
@@ -219,19 +219,19 @@ class VoiceOrganizer(Frame):
         self.healthRecord = Canvas(self, width=400, height=320)
         self.healthRecord.grid(row=1, column=3, rowspan=3, columnspan=4)
 
-        # bluetooth
-        self.bluetoothText = Label(self)
-        self.bluetoothText["text"] = "Bluetooth"
-        self.bluetoothText.grid(row=2, column=0)
-        self.bluetoothField = Text(self, height=4, width=16, font=(None, 12))
-        self.bluetoothField.grid(row=2, column=1, columnspan=2, sticky=W)
-
         # bleligth
         self.bleligthText = Label(self)
         self.bleligthText["text"] = "*BLE Light*"
-        self.bleligthText.grid(row=3, column=0)
+        self.bleligthText.grid(row=2, column=0)
         self.bleligthField = Text(self, height=4, width=16, font=(None, 12))
-        self.bleligthField.grid(row=3, column=1, columnspan=2, sticky=W)
+        self.bleligthField.grid(row=2, column=1, columnspan=2, sticky=W)
+
+        # headset
+        self.bluetoothText = Label(self)
+        self.bluetoothText["text"] = "HeadSet"
+        self.bluetoothText.grid(row=3, column=0)
+        self.bluetoothField = Text(self, height=4, width=16, font=(None, 12))
+        self.bluetoothField.grid(row=3, column=1, columnspan=2, sticky=W)
 
         # buttons
         self.exitBtn = Button(self, text = "Exit", command = lambda:root.destroy())
