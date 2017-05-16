@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from Tkinter import *
 from ttk import *
 from blelight import *
+from csr8670 import CSR8670
 
 
 #### global vars
@@ -20,6 +21,17 @@ blelight_patterns = {
     u'打开二号': [(2, 1)],
     u'关闭一号': [(1, 0)],
     u'关闭二号': [(2, 0)],
+}
+
+headset_patterns = {
+    u'接听'    : 0,
+    u'不接'    : 1,
+    u'音量增大': 2, u'大声': 2,
+    u'音量减小': 3, u'小声': 3,
+    u'播放'    : 4,
+    u'暂停'    : 4,
+    u'下一首'  : 5,
+    u'上一首'  : 6,
 }
 
 health_patterns = {
@@ -46,13 +58,14 @@ health_record = {
 
 #### calss ####
 class VoiceOrganizer(Frame):
-    def __init__(self, master=None, audio_output="0,0", do_blelight=False):
+    def __init__(self, master=None, audio_output="0,0", do_blelight=False, do_headset=False):
         Frame.__init__(self, master)
         self.grid()
         self.createWidgets()
-        self.output_fields = [self.sttField, self.healthField, self.bluetoothField, self.bleligthField]
+        self.output_fields = [self.sttField, self.healthField, self.bleligthField, self.bluetoothField]
         self.audio_output = audio_output
         self.do_blelight = do_blelight
+        self.do_headset = do_headset
         self.row = 1
         self.pltimg = None
         self.health_cfg = ConfigParser.ConfigParser()
@@ -124,7 +137,7 @@ class VoiceOrganizer(Frame):
     def stt_handler(self, msg):
         if msg.has_key('results') and len(msg['results']) > 0:
             # vars
-            event_type = 0 # 0: stt, 1: health, 2: bluetooth, 3: blelight
+            event_type = 0 # 0: stt, 1: health, 2: blelight, 3: headset
             event_key = None
             event_data = None
 
@@ -142,13 +155,20 @@ class VoiceOrganizer(Frame):
                             event_key  = key
                             event_data = val
                             break
-            # test if bluetooth (2)
-            # test if blelight (3)
+            # test if blelight (2)
             if bFinal:
                 for key in blelight_patterns.keys():
                     if key in transcript:
+                        event_type = 2
+                        event_key  = key
+                        break
+            # test if headset (3)
+            if bFinal:
+                for key in headset_patterns.keys():
+                    if key in transcript:
                         event_type = 3
                         event_key  = key
+                        event_data = headset_patterns[key]
                         break
 
             # show transcript in corresponding field
@@ -171,13 +191,14 @@ class VoiceOrganizer(Frame):
                     self.speak(transcript)
                     health_record[event_key] = event_data
                     self.show_health_plot(val)
-            # do bluetooth
-            elif event_type == 2:
-                pass
             # do blelight
-            elif event_type == 3 and self.do_blelight == True:
+            elif event_type == 2 and self.do_blelight == True and blelights != None:
                 for val in blelight_patterns[event_key]:
                     blelights.control(val[0], val[1])
+            # do headset
+            elif event_type == 3 and self.do_headset == True and csr8670 != None:
+                csr8670.do_func(event_data)
+
 
     def text_to_number(self, txt):
         ttn_patterns = {u'九':9, u'八':8, u'七':7, u'六':6, u'五':5, u'四':4, u'三':3, u'二':2, u'一':1,}
@@ -242,23 +263,26 @@ if __name__ == '__main__':
     # vars
     audio_output = "0,0"
     do_blelight = False
+    do_headset = False
     # check system: dragonboard or PC ?
     arch = os.uname()[-1]
     if arch == "aarch64":   # dragonboard
         audio_output = "0,0"
         do_blelight = True
+        do_headset = True
 
     # init TK
     root = Tk()
     root.title("IBM Watson Voice Service Application")
-    app = VoiceOrganizer(root, audio_output, do_blelight)
+    app = VoiceOrganizer(root, audio_output, do_blelight, do_headset)
 
     # init watson service
     cfg = ConfigParser.ConfigParser()
     cfg.read("./account.conf")
     username = cfg.get("bluemix", "username")
     password = cfg.get("bluemix", "password")
-    keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小', '白', '黑', '今', '天', '血', '压', '糖', '体', '重', '记', '录']
+    keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小', '白', '黑', '今', '天', '血', '压', '糖', '体', '重', '记', '录',
+                     '接', '听', '不', '增', '大', '音', '量', '减', '播', '放', '暂', '停', '下', '上', '首']
     stt_client = sttcli.SpeechToTextClient( username, 
                                             password, 
                                             on_recv_msg = app.stt_handler,
@@ -266,6 +290,10 @@ if __name__ == '__main__':
                                             keywords = keyword_array, 
                                             keywords_threshold = 0.05,
                                             done_handler = app.stt_done) # block mode
+
+    # init CSR8670
+    if do_headset:
+        csr8670 = CSR8670()
 
     # init ble light
     if do_blelight:
@@ -276,4 +304,5 @@ if __name__ == '__main__':
 
     # ending
     if do_blelight and blelights != None: blelights.close()
+    if do_headset  and csr8670   != None: csr8670.close()
     stt_client.close()

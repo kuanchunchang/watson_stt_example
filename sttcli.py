@@ -11,6 +11,9 @@ class SpeechToTextClient(WebSocketClient):
         auth_string = "%s:%s" % (username, password)
         base64string = base64.encodestring(auth_string).replace("\n", "")
 
+        self.username = username
+        self.password = password
+        self.model = model
         self.listening = False
         self.on_recv_msg = on_recv_msg
         self.inactivity_timeout = timeout;
@@ -70,6 +73,14 @@ class SpeechToTextClient(WebSocketClient):
 
             try: self.send(bytearray(data), binary=True)
             except ssl.SSLError: pass
+            except:
+                print "RECONNECT"
+                self.__init__(  self.username,
+                                self.password,
+                                on_recv_msg = self.on_recv_msg,
+                                interim = self.interim,
+                                keywords = self.keywords,
+                                keywords_threshold = self.keywords_threshold)
 
         p.kill()
 
