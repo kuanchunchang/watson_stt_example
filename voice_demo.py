@@ -14,6 +14,11 @@ from csr8670 import CSR8670
 
 
 #### global vars
+change_lang_patterns = {
+    u'I want to speak Chinese': 'zh-CN_BroadbandModel',
+    u'我要说英文'             : 'en-US_BroadbandModel',
+}
+
 blelight_patterns = {
     u'全开'    : [(1, 1), (2, 1)],
     u'全关'    : [(1, 0), (2, 0)],
@@ -57,7 +62,7 @@ health_record = {
 }
 
 #### calss ####
-class VoiceOrganizer(Frame):
+class DemoApp(Frame):
     def __init__(self, master=None, audio_output="0,0", do_blelight=False, do_headset=False):
         Frame.__init__(self, master)
         self.grid()
@@ -70,6 +75,7 @@ class VoiceOrganizer(Frame):
         self.pltimg = None
         self.health_cfg = ConfigParser.ConfigParser()
         self.health_cfg.read("healthrecord.ini")
+        self.lang_idx = 0
         # matplotlib
         self.fig = Figure(figsize=(5,4))
         self.ax1 = self.fig.add_subplot(311)
@@ -93,8 +99,11 @@ class VoiceOrganizer(Frame):
         int_list = map(int, str_list)
         return int_list
 
-    def stt_done(self):
-        self.sttText["text"] = "Voice"
+    def status_handler(self, status):
+        if status == 1: # ready
+            self.sttText["text"] = "Voice(%s)" % ("CH" if self.lang_idx == 0 else "EN")
+        else:
+            self.sttText["text"] = "Voice(...)"
 
     def blelight_done(self):
         self.bleligthText["text"] = "BLE Light"
@@ -143,7 +152,9 @@ class VoiceOrganizer(Frame):
 
             # get transcript
             bFinal = msg['results'][0]['final']
-            transcript = unicode(msg['results'][0]['alternatives'][0]['transcript']).replace(u' ', '')
+            transcript = unicode(msg['results'][0]['alternatives'][0]['transcript'])
+            if self.is_chinese(transcript):
+                transcript = transcript.replace(u' ', '')
 
             # test if health (1)
             if bFinal:
@@ -171,13 +182,23 @@ class VoiceOrganizer(Frame):
                         event_data = headset_patterns[key]
                         break
 
+            # test if language switch command ?
+            if bFinal:
+                for key in change_lang_patterns.keys():
+                    if key in transcript:
+                        event_type = 4
+                        event_key  = key
+                        event_data = change_lang_patterns[key]
+                        self.lang_idx = (1 if self.lang_idx == 0 else 0)
+                        break
+
             # show transcript in corresponding field
-            self.output_fields[0].delete("%s.0"%(self.row), "%s.99"%(self.row))
+            self.output_fields[0].delete("%s.0"%(self.row), "%s.1024"%(self.row))
             self.output_fields[0].insert("%s.0"%(self.row), transcript)
             self.output_fields[0].see("end")
             if bFinal == True:
                 self.output_fields[0].insert(END, '\n')
-                if event_type != 0:
+                if event_type != 0 and event_type < 4:
                     self.output_fields[event_type].insert(END, transcript + '\n')
                     self.output_fields[event_type].see("end")
                 self.row = self.row + 1
@@ -199,6 +220,9 @@ class VoiceOrganizer(Frame):
             elif event_type == 3 and self.do_headset == True and csr8670 != None:
                 csr8670.do_func(event_data)
 
+            # do language switch
+            elif event_type == 4:
+                stt_client.change_lang(event_data)
 
     def text_to_number(self, txt):
         ttn_patterns = {u'九':9, u'八':8, u'七':7, u'六':6, u'五':5, u'四':4, u'三':3, u'二':2, u'一':1,}
@@ -222,6 +246,23 @@ class VoiceOrganizer(Frame):
                     pass
 
         return sum
+
+    def clear_all_fileds(self):
+        if hasattr(self, 'output_fields'):
+            for f in self.output_fields:
+                f.delete('1.0', END)
+
+    def is_chinese(self, string):
+        for uchar in string:
+            if ord(uchar) in [0x20, 0x0D, 0x0A]:
+                continue
+            if not (uchar >= u'\u4e00' and uchar <= u'\u9fa5'):
+                return False
+        return True
+
+    def test_function(self):
+        self.sttText["text"] = "*Voice*"
+        stt_client.change_lang('en-US_BroadbandModel')
 
     def createWidgets(self):
         # Watson STT
@@ -249,14 +290,19 @@ class VoiceOrganizer(Frame):
 
         # headset
         self.bluetoothText = Label(self)
-        self.bluetoothText["text"] = "HeadSet"
+        self.bluetoothText["text"] = "*HeadSet*"
         self.bluetoothText.grid(row=3, column=0)
         self.bluetoothField = Text(self, height=4, width=16, font=(None, 12))
         self.bluetoothField.grid(row=3, column=1, columnspan=2, sticky=W)
 
         # buttons
+        #self.testBtn = Button(self, text = "Test", command = self.test_function)
+        #self.testBtn.grid(row=4, column=4)
+        self.clearBtn = Button(self, text = "Clear", command = self.clear_all_fileds)
+        self.clearBtn.grid(row=4, column=5)
         self.exitBtn = Button(self, text = "Exit", command = lambda:root.destroy())
         self.exitBtn.grid(row=4, column=6)
+
 
 
 if __name__ == '__main__':
@@ -274,7 +320,7 @@ if __name__ == '__main__':
     # init TK
     root = Tk()
     root.title("IBM Watson Voice Service Application")
-    app = VoiceOrganizer(root, audio_output, do_blelight, do_headset)
+    app = DemoApp(root, audio_output, do_blelight, do_headset)
 
     # init watson service
     cfg = ConfigParser.ConfigParser()
@@ -282,14 +328,14 @@ if __name__ == '__main__':
     username = cfg.get("bluemix", "username")
     password = cfg.get("bluemix", "password")
     keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小', '白', '黑', '今', '天', '血', '压', '糖', '体', '重', '记', '录',
-                     '接', '听', '不', '增', '大', '音', '量', '减', '播', '放', '暂', '停', '下', '上', '首']
+                     '接', '听', '不', '增', '大', '音', '量', '减', '播', '放', '暂', '停', '下', '上', '首', '说', '英', '文']
     stt_client = sttcli.SpeechToTextClient( username, 
                                             password, 
                                             on_recv_msg = app.stt_handler,
                                             interim = "true",
                                             keywords = keyword_array, 
                                             keywords_threshold = 0.05,
-                                            done_handler = app.stt_done) # block mode
+                                            status_handler = app.status_handler) # block mode
 
     # init CSR8670
     if do_headset:
