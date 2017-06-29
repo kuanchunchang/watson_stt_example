@@ -15,8 +15,8 @@ from csr8670 import CSR8670
 
 #### global vars
 change_lang_patterns = {
-    u'I want to speak Chinese': 'zh-CN_BroadbandModel',
-    u'我要说英文'             : 'en-US_BroadbandModel',
+    u'Chinese mode': 'zh-CN_BroadbandModel',
+    u'英文模式'    : 'en-US_BroadbandModel',
 }
 
 blelight_patterns = {
@@ -281,7 +281,7 @@ class DemoApp(Frame):
         self.healthRecord = Canvas(self, width=400, height=320)
         self.healthRecord.grid(row=1, column=3, rowspan=3, columnspan=4)
 
-        # bleligth
+        # blelight
         self.bleligthText = Label(self)
         self.bleligthText["text"] = "*BLE Light*"
         self.bleligthText.grid(row=2, column=0)
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     username = cfg.get("bluemix", "username")
     password = cfg.get("bluemix", "password")
     keyword_array = ['全', '打', '开', '关', '闭', '一', '二', '号', '灯', '小', '白', '黑', '今', '天', '血', '压', '糖', '体', '重', '记', '录',
-                     '接', '听', '不', '增', '大', '音', '量', '减', '播', '放', '暂', '停', '下', '上', '首', '说', '英', '文']
+                     '接', '听', '不', '增', '大', '音', '量', '减', '播', '放', '暂', '停', '下', '上', '首', '英', '文', '模', '式']
     stt_client = sttcli.SpeechToTextClient( username, 
                                             password, 
                                             on_recv_msg = app.stt_handler,
