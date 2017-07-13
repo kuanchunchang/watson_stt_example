@@ -27,10 +27,10 @@ class SpeechToTextClient(WebSocketClient):
             WebSocketClient.__init__(self, ws_url,
                 headers=[("Authorization", "Basic %s" % base64string)])
             self.connect()
-
             if status_handler != None: status_handler(1)
 
-        except: print "Failed to open WebSocket."
+        except Exception as e:
+            print "Failed to open WebSocket: %s" % (e)
 
     def opened(self):
         # make json string
@@ -46,6 +46,10 @@ class SpeechToTextClient(WebSocketClient):
         self.send(json.dumps(json_data))
         self.stream_audio_thread = threading.Thread(target=self.stream_audio)
         self.stream_audio_thread.start()
+
+    def closed(self, code, reason):
+        print(("Closed down", code, reason))
+        self.sock.close()
 
     def received_message(self, message):
         message = json.loads(str(message))
@@ -93,6 +97,8 @@ class SpeechToTextClient(WebSocketClient):
                 self.change_lang_flag = False
                 print "CHANGE LANG = %s" % (self.model)
                 self.status_handler(0)
+                WebSocketClient.close(self)
+                time.sleep(1)
                 self.__init__(  self.username,
                                 self.password,
                                 model = self.model,

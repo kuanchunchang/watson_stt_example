@@ -102,6 +102,8 @@ class DemoApp(Frame):
     def status_handler(self, status):
         if status == 1: # ready
             self.sttText["text"] = "Voice(%s)" % ("CH" if self.lang_idx == 0 else "EN")
+            self.output_fields[0].delete("1.0", END)
+            self.row = 1
         else:
             self.sttText["text"] = "Voice(...)"
 
@@ -149,9 +151,13 @@ class DemoApp(Frame):
             event_type = 0 # 0: stt, 1: health, 2: blelight, 3: headset
             event_key = None
             event_data = None
+            confidence = 0.0
 
             # get transcript
             bFinal = msg['results'][0]['final']
+            if bFinal:
+                confidence = msg['results'][0]['alternatives'][0]['confidence']
+                #print confidence
             transcript = unicode(msg['results'][0]['alternatives'][0]['transcript'])
             if self.is_chinese(transcript):
                 transcript = transcript.replace(u' ', '')
@@ -251,6 +257,7 @@ class DemoApp(Frame):
         if hasattr(self, 'output_fields'):
             for f in self.output_fields:
                 f.delete('1.0', END)
+            self.row = 1
 
     def is_chinese(self, string):
         for uchar in string:
